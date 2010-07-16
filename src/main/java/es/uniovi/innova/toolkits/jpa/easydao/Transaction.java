@@ -27,6 +27,8 @@ public abstract class Transaction {
 
 	/**
 	 * Executes the transaction
+	 * @throws {@link TransactionRolledbackException} if the transaction
+	 * cannot be commited and it's therefore rolledback.
 	 */
 	public void execute() {
 		EntityTransaction tx = entityManager.getTransaction();
@@ -37,9 +39,10 @@ public abstract class Transaction {
 			tx.commit();
 			invokeAnnotatedMethods(AfterCommit.class);
 		} catch (Throwable t) {
-			logger.warn("An exception occurred while executing the transaction");
+			logger.warn("An exception occurred while executing the transaction. "+t.getMessage());
 			tx.rollback();
 			invokeAnnotatedMethods(AfterRollback.class);
+			throw new TransactionRolledbackException(t.getMessage());
 		}
 	}
 
@@ -61,8 +64,7 @@ public abstract class Transaction {
 				} catch (Throwable ex) {
 					logger.error(String
 							.format("Error executing %s method with %s annotation. Error was: %s",
-									m.getName(), 
-									annotation.getSimpleName(),
+									m.getName(), annotation.getSimpleName(),
 									ex.getMessage()));
 					throw new RuntimeException(ex);
 				}
@@ -79,10 +81,10 @@ public abstract class Transaction {
 	 *             if the entity manager is closed
 	 */
 	private void setEntityManager(EntityManager entityManager) {
-		if (entityManager == null) {
+		if (entityManager == null){
 			throw new IllegalArgumentException("Argument cannot be null");
 		}
-		if (!entityManager.isOpen()) {
+		if (!entityManager.isOpen()){
 			throw new IllegalStateException("Entity manager is closed: "
 					+ entityManager);
 		}
